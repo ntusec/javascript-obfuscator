@@ -159,4 +159,33 @@ describe('Obfuscation correctness fixes', () => {
             );
         });
     });
+
+    describe('`stringArray` should escape lone surrogate code units', () => {
+        it('Variant #1: a lone-surrogate string literal survives a UTF-8 round-trip', () => {
+            // A string-array entry containing a lone surrogate (e.g. the low-surrogate range in a
+            // grapheme regex) used to be emitted raw; writing the output as UTF-8 (the universal
+            // output path) corrupts it to U+FFFD, silently changing the string.
+            const code: string = 'function p() { return \'\\uDC00-\\uDFFF\'; } module.exports = p;';
+
+            const obfuscatedCode: string = JavaScriptObfuscator.obfuscate(code, {
+                ...NO_ADDITIONAL_NODES_PRESET,
+                stringArray: true,
+                stringArrayThreshold: 1
+            }).getObfuscatedCode();
+
+            // emulate writing the obfuscated output to a UTF-8 file and reading it back
+            const roundTripped: string = Buffer.from(obfuscatedCode, 'utf8').toString('utf8');
+
+            assert.notInclude(roundTripped, '�', 'obfuscated output must not contain a replacement character');
+
+            const run = (source: string): unknown => {
+                const moduleObject: { exports: any } = { exports: {} };
+                // eslint-disable-next-line no-new-func
+                new Function('module', 'exports', source)(moduleObject, moduleObject.exports);
+                return moduleObject.exports();
+            };
+
+            assert.strictEqual(run(roundTripped), run(code));
+        });
+    });
 });
