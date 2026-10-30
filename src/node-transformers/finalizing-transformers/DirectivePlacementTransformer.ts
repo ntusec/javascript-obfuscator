@@ -51,6 +51,30 @@ export class DirectivePlacementTransformer extends AbstractNodeTransformer {
     }
 
     /**
+     * Returns the lexical-scope node that owns `node`'s statements, or null if `node` does not
+     * hold a directive-prologue-bearing statement list. The top-level `Program` is its own scope
+     * (its `parentNode` is null during traversal); a function body `BlockStatement` is owned by
+     * its parent function. Handling the `Program` case is what keeps a module-level `'use strict'`
+     * from being demoted out of the directive prologue when other transformers prepend statements
+     * (e.g. the string-array rotation wrapper).
+     *
+     * @param {Node} node
+     * @param {Node | null} parentNode
+     * @returns {Node | null}
+     */
+    private static getLexicalScopeNode(node: ESTree.Node, parentNode: ESTree.Node | null): ESTree.Node | null {
+        if (NodeGuards.isProgramNode(node)) {
+            return node;
+        }
+
+        if (parentNode && NodeGuards.isNodeWithLexicalScopeStatements(node, parentNode)) {
+            return parentNode;
+        }
+
+        return null;
+    }
+
+    /**
      * @param {NodeTransformationStage} nodeTransformationStage
      * @returns {IVisitor | null}
      */
@@ -62,8 +86,13 @@ export class DirectivePlacementTransformer extends AbstractNodeTransformer {
                         node: ESTree.Node,
                         parentNode: ESTree.Node | null
                     ): ESTree.Node | estraverse.VisitorOption | undefined => {
-                        if (parentNode && NodeGuards.isNodeWithLexicalScopeStatements(node, parentNode)) {
-                            return this.analyzeNode(node, parentNode);
+                        const scopeNode: ESTree.Node | null = DirectivePlacementTransformer.getLexicalScopeNode(
+                            node,
+                            parentNode
+                        );
+
+                        if (scopeNode) {
+                            return this.analyzeNode(<TNodeWithLexicalScopeStatements>node, scopeNode);
                         }
                     }
                 };
@@ -74,8 +103,13 @@ export class DirectivePlacementTransformer extends AbstractNodeTransformer {
                         node: ESTree.Node,
                         parentNode: ESTree.Node | null
                     ): ESTree.Node | estraverse.VisitorOption | undefined => {
-                        if (parentNode && NodeGuards.isNodeWithLexicalScopeStatements(node, parentNode)) {
-                            return this.transformNode(node, parentNode);
+                        const scopeNode: ESTree.Node | null = DirectivePlacementTransformer.getLexicalScopeNode(
+                            node,
+                            parentNode
+                        );
+
+                        if (scopeNode) {
+                            return this.transformNode(<TNodeWithLexicalScopeStatements>node, scopeNode);
                         }
                     }
                 };
@@ -98,10 +132,20 @@ export class DirectivePlacementTransformer extends AbstractNodeTransformer {
             return nodeWithLexicalScopeStatements;
         }
 
-        const firstStatementNode = nodeWithLexicalScopeStatements.body[0] ?? null;
+        // Record the scope's directive-prologue node (e.g. `'use strict'`). Earlier transformers
+        // may already have prepended statements ahead of it (notably the string-array wrapper at
+        // the top of the program), so the directive is not necessarily `body[0]` by the time this
+        // runs — find it wherever it currently sits. Acorn only sets the `directive` field on
+        // genuine prologue directives, so scanning by `isDirectiveNode` cannot misclassify an
+        // ordinary string-expression statement.
+        const directiveNode: ESTree.Directive | undefined = <ESTree.Directive | undefined>(
+            nodeWithLexicalScopeStatements.body.find((statementNode: ESTree.Node) =>
+                NodeGuards.isDirectiveNode(statementNode)
+            )
+        );
 
-        if (firstStatementNode && NodeGuards.isDirectiveNode(firstStatementNode)) {
-            this.lexicalScopeDirectives.set(parentNode, firstStatementNode);
+        if (directiveNode) {
+            this.lexicalScopeDirectives.set(parentNode, directiveNode);
         }
 
         return nodeWithLexicalScopeStatements;

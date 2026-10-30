@@ -141,4 +141,22 @@ describe('Obfuscation correctness fixes', () => {
             assert.strictEqual(evaluate(code, { identifierNamesGenerator: 'mangled' }, { c: 30 }), 31);
         });
     });
+
+    describe('`stringArrayRotate` should not demote a module `use strict` directive', () => {
+        it('Variant #1: keeps the module in strict mode (detached `this` stays undefined)', () => {
+            // `stringArrayRotate` prepends a self-invoking wrapper as the program's first statement.
+            // If `'use strict'` is not re-hoisted above it, the directive drops out of the prologue
+            // and the whole module runs in sloppy mode, changing `this` binding and other semantics.
+            const code: string =
+                '\'use strict\';' +
+                'function check() { return this === undefined; }' +
+                'var detached = check;' +
+                'return detached();';
+
+            assert.strictEqual(
+                evaluate(code, { stringArray: true, stringArrayRotate: true, stringArrayThreshold: 1 }),
+                true
+            );
+        });
+    });
 });
