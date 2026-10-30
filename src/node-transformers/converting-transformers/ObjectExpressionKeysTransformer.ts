@@ -123,6 +123,10 @@ export class ObjectExpressionKeysTransformer extends AbstractNodeTransformer {
                 objectExpressionNode,
                 objectExpressionHostStatement
             ) ||
+            ObjectExpressionKeysTransformer.isProhibitedConditionalEvaluation(
+                objectExpressionNode,
+                objectExpressionHostStatement
+            ) ||
             ObjectExpressionKeysTransformer.isProhibitedSequenceExpression(objectExpressionNode) ||
             ObjectExpressionKeysTransformer.isProhibitedLoopBody(objectExpressionNode)
         ) {
@@ -191,6 +195,55 @@ export class ObjectExpressionKeysTransformer extends AbstractNodeTransformer {
             }
 
             currentNode = currentNode.parentNode;
+        }
+
+        return false;
+    }
+
+    /**
+     * Extraction hoists the object's properties into unconditionally-executed `host[key] = value`
+     * statements in the host statement's scope. That is only safe when the object expression is
+     * itself evaluated unconditionally whenever the host statement runs. When the object sits in a
+     * short-circuit or conditional position — the right operand of `&&`/`||`/`??`, or a branch of
+     * `?:` — the original evaluates it only conditionally; hoisting would evaluate it (and its
+     * property values) every time, changing behavior. A real-world case is esbuild's dead
+     * named-export marker `0 && (module.exports = { Foo })`, whose bare identifiers are never
+     * evaluated originally but throw a `ReferenceError` once the object is hoisted and run
+     * unconditionally.
+     *
+     * @param {ObjectExpression} objectExpressionNode
+     * @param {Statement} objectExpressionHostStatement
+     * @returns {boolean}
+     */
+    private static isProhibitedConditionalEvaluation(
+        objectExpressionNode: ESTree.ObjectExpression,
+        objectExpressionHostStatement: ESTree.Statement
+    ): boolean {
+        let currentNode: ESTree.Node = objectExpressionNode;
+
+        while (currentNode !== objectExpressionHostStatement) {
+            const parentNode: ESTree.Node | undefined = currentNode.parentNode;
+
+            if (!parentNode) {
+                break;
+            }
+
+            // The right operand of `&&`, `||`, `??` is only evaluated when the left operand does
+            // not short-circuit, so it must not be hoisted into unconditional execution.
+            if (NodeGuards.isLogicalExpressionNode(parentNode) && parentNode.right === currentNode) {
+                return true;
+            }
+
+            // The `consequent`/`alternate` branches of `?:` are each evaluated only when the test
+            // selects them, so they must not be hoisted into unconditional execution either.
+            if (
+                NodeGuards.isConditionalExpressionNode(parentNode) &&
+                (parentNode.consequent === currentNode || parentNode.alternate === currentNode)
+            ) {
+                return true;
+            }
+
+            currentNode = parentNode;
         }
 
         return false;

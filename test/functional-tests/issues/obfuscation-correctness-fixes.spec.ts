@@ -106,6 +106,30 @@ describe('Obfuscation correctness fixes', () => {
 
             assert.strictEqual(evaluate(code, options), '{"a":1,"b":2,"c":3}');
         });
+
+        it('Variant #3: does not hoist an object literal out of a `&&` short-circuit', () => {
+            // esbuild emits a dead named-export marker `0 && (module.exports = { Foo })` whose
+            // bare identifiers are never evaluated. Extracting that object to unconditional
+            // `host[key] = value` statements would evaluate the undeclared identifier and throw.
+            const code: string =
+                'globalThis.__reachedMarker = false;' +
+                '0 && (module.exports = { Foo: UndeclaredMarkerRef });' +
+                'globalThis.__reachedMarker = true;' +
+                'return globalThis.__reachedMarker;';
+
+            assert.strictEqual(evaluate(code, options), true);
+        });
+
+        it('Variant #4: does not hoist an object literal out of a `?:` branch', () => {
+            const code: string =
+                'globalThis.__reachedTernary = false;' +
+                'var cond = true;' +
+                'cond ? 1 : ({ Y: UndeclaredTernaryRef });' +
+                'globalThis.__reachedTernary = true;' +
+                'return globalThis.__reachedTernary;';
+
+            assert.strictEqual(evaluate(code, options), true);
+        });
     });
 
     describe('`mangled` identifier names should not shadow a referenced free identifier', () => {

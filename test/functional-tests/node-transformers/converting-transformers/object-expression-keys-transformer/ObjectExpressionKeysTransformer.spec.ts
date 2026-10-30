@@ -1761,9 +1761,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                 const match: string =
                     `` +
                     `var ${variableMatch};` +
-                    `var ${variableMatch} *= *{};` +
-                    `${variableMatch}\\['bar'] *= *0x1;` +
-                    `${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *${variableMatch};` +
+                    `${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *{'bar' *: *0x1};` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
 
@@ -1789,9 +1787,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                 const match: string =
                     `` +
                     `var ${variableMatch};` +
-                    `var ${variableMatch} *= *{};` +
-                    `${variableMatch}\\['bar'] *= *0x1;` +
-                    `return ${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *${variableMatch};` +
+                    `return ${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *{'bar' *: *0x1};` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
 
@@ -1818,9 +1814,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                     `` +
                     `var ${variableMatch};` +
                     `var ${variableMatch};` +
-                    `var ${variableMatch} *= *{};` +
-                    `${variableMatch}\\['bar'] *= *0x1;` +
-                    `${variableMatch} *= *${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *${variableMatch};` +
+                    `${variableMatch} *= *${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *{'bar' *: *0x1};` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
 
@@ -1846,9 +1840,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                 const match: string =
                     `` +
                     `var ${variableMatch};` +
-                    `var ${variableMatch} *= *{};` +
-                    `${variableMatch}\\['bar'] *= *0x1;` +
-                    `var ${variableMatch} *= *${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *${variableMatch};` +
+                    `var ${variableMatch} *= *${variableMatch} *\\? *{'bar' *: *${variableMatch}\\['foo']} *: *{'bar' *: *0x1};` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
 
@@ -2164,9 +2156,7 @@ describe('ObjectExpressionKeysTransformer', () => {
             describe('Variant #1: conditional expression identifier reference', () => {
                 const match: string =
                     `` +
-                    `var ${variableMatch} *= *{};` +
-                    `${variableMatch}\\['bar'] *= *0x1;` +
-                    `this\\['foo'] *\\? *{'bar' *: *this\\['foo']} *: *${variableMatch};` +
+                    `this\\['foo'] *\\? *{'bar' *: *this\\['foo']} *: *{'bar' *: *0x1};` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
 
@@ -2191,9 +2181,7 @@ describe('ObjectExpressionKeysTransformer', () => {
             describe('Variant #2: return statement conditional expression `this` reference', () => {
                 const match: string =
                     `` +
-                    `var ${variableMatch} *= *{};` +
-                    `${variableMatch}\\['bar'] *= *0x1;` +
-                    `return this\\['foo'] *\\? *{'bar' *: *this\\['foo']} *: *${variableMatch};` +
+                    `return this\\['foo'] *\\? *{'bar' *: *this\\['foo']} *: *{'bar' *: *0x1};` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
 
@@ -2218,9 +2206,7 @@ describe('ObjectExpressionKeysTransformer', () => {
             describe('Variant #3: assignment expression conditional expression `this` reference', () => {
                 const match: string =
                     `` +
-                    `var ${variableMatch} *= *{};` +
-                    `${variableMatch}\\['bar'] *= *0x1;` +
-                    `this\\['bar'] *= *this\\['foo'] *\\? *{'bar' *: *this\\['foo']} *: *${variableMatch};` +
+                    `this\\['bar'] *= *this\\['foo'] *\\? *{'bar' *: *this\\['foo']} *: *{'bar' *: *0x1};` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
 
