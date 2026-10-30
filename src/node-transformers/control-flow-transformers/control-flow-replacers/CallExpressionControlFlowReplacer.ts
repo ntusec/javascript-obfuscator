@@ -66,6 +66,17 @@ export class CallExpressionControlFlowReplacer extends AbstractControlFlowReplac
 
         const expressionArguments: (ESTree.Expression | ESTree.SpreadElement)[] = callExpressionNode.arguments;
 
+        // An optional call `foo?.(arg)` short-circuits *argument evaluation* when `foo` is
+        // nullish — the arguments are never evaluated. The generated control flow wrapper
+        // `(callee, p1) => callee?.(p1)` only guards the call itself; the arguments are passed
+        // in at the outer call site (`storage[key](foo, arg)`) and therefore evaluated eagerly,
+        // before the `?.` check. Flattening such a call would run a side-effecting argument (or
+        // throw on a throwing one) when it must not. A zero-argument optional call has nothing to
+        // short-circuit, so it can still be flattened safely.
+        if (isChainExpressionParent && expressionArguments.length) {
+            return callExpressionNode;
+        }
+
         // Bucket reuse-eligible wrappers by the exact argument *shape* (which positions are
         // spread vs. plain) AND optional-ness — not just `arguments.length`.
         //

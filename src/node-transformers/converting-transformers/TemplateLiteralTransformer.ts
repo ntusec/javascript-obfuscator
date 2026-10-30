@@ -33,14 +33,6 @@ export class TemplateLiteralTransformer extends AbstractNodeTransformer {
     }
 
     /**
-     * @param {NodeGuards} node
-     * @returns {boolean}
-     */
-    private static isLiteralNodeWithStringValue(node: ESTree.Node | undefined): boolean {
-        return !!node && NodeGuards.isLiteralNode(node) && typeof node.value === 'string';
-    }
-
-    /**
      * @param {NodeTransformationStage} nodeTransformationStage
      * @returns {IVisitor | null}
      */
@@ -111,33 +103,29 @@ export class TemplateLiteralTransformer extends AbstractNodeTransformer {
             return !(NodeGuards.isLiteralNode(node) && node.value === '');
         });
 
-        // since `+` is left-to-right associative
-        // ensure the first node is a string if first/second isn't
-        if (
-            !TemplateLiteralTransformer.isLiteralNodeWithStringValue(filteredNodes[0]) &&
-            !TemplateLiteralTransformer.isLiteralNodeWithStringValue(filteredNodes[1])
-        ) {
-            filteredNodes.unshift(NodeFactory.literalNode(''));
-        }
-
         let transformedNode: ESTree.Node;
 
-        if (filteredNodes.length > 1) {
-            let root: ESTree.BinaryExpression = NodeFactory.binaryExpressionNode(
-                '+',
-                <ESTree.Literal>filteredNodes[0],
-                filteredNodes[1]
+        if (templateLiteralExpressions.length) {
+            /**
+             * A template literal coerces each interpolated expression with `ToString`
+             * (a `ToPrimitive` call with the `"string"` hint, so `toString`/`Symbol.toPrimitive`
+             * runs first). A `+` concatenation instead coerces objects with the `"default"` hint
+             * (`valueOf` first), so `` `${obj}` `` and `'' + obj` can produce different strings.
+             *
+             * `String.prototype.concat` applies `ToString` to every argument with the `"string"`
+             * hint, exactly matching template-literal semantics, so build `''.concat(...parts)`
+             * instead of a `+` chain whenever there is at least one interpolation.
+             */
+            transformedNode = NodeFactory.callExpressionNode(
+                NodeFactory.memberExpressionNode(
+                    NodeFactory.literalNode(''),
+                    NodeFactory.identifierNode('concat')
+                ),
+                filteredNodes
             );
-
-            // Start from index 2 since we already used 0 and 1
-            const filteredNodesLength: number = filteredNodes.length;
-            for (let i: number = 2; i < filteredNodesLength; i++) {
-                root = NodeFactory.binaryExpressionNode('+', root, filteredNodes[i]);
-            }
-
-            transformedNode = root;
         } else {
-            transformedNode = filteredNodes[0];
+            // A template literal without interpolations is a constant string.
+            transformedNode = filteredNodes.length ? filteredNodes[0] : NodeFactory.literalNode('');
         }
 
         NodeUtils.parentizeAst(transformedNode);

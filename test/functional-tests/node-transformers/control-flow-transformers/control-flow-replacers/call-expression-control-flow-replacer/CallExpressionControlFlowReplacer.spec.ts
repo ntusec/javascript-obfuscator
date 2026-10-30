@@ -216,16 +216,15 @@ describe('CallExpressionControlFlowReplacer', function () {
             });
         });
 
-        describe('Variant #7 - keep optional chaining operator', () => {
+        describe('Variant #7 - do not flatten an optional call that has arguments', () => {
+            // The control flow wrapper evaluates arguments eagerly at the outer call site, which
+            // would break the `?.` short-circuit of argument evaluation. Such a call must be left
+            // inline instead of being replaced with a control flow storage call.
+            const inlineOptionalCallRegExp: RegExp = new RegExp(
+                `var ${variableMatch} *= *${variableMatch}\\?\\.\\(0x1, *0x2\\);`
+            );
             const controlFlowStorageCallRegExp: RegExp = new RegExp(
                 `${variableMatch}\\['\\w{5}']\\(${variableMatch}, *0x1, *0x2\\);`
-            );
-            const controlFlowStorageNodeRegExp: RegExp = new RegExp(
-                `` +
-                    `'\\w{5}' *: *function *\\(${variableMatch}, *${variableMatch}, *${variableMatch}\\) *\\{` +
-                    `return *${variableMatch}\\?\\.\\(${variableMatch}, *${variableMatch}\\);` +
-                    `\\}` +
-                    ``
             );
 
             let obfuscatedCode: string;
@@ -240,12 +239,12 @@ describe('CallExpressionControlFlowReplacer', function () {
                 }).getObfuscatedCode();
             });
 
-            it('should replace call expression node with call to control flow storage node', () => {
-                assert.match(obfuscatedCode, controlFlowStorageCallRegExp);
+            it('should keep the optional call inline with its `?.` operator', () => {
+                assert.match(obfuscatedCode, inlineOptionalCallRegExp);
             });
 
-            it('should wrap call expression into chain expression', () => {
-                assert.match(obfuscatedCode, controlFlowStorageNodeRegExp);
+            it('should not replace the optional call with a control flow storage call', () => {
+                assert.notMatch(obfuscatedCode, controlFlowStorageCallRegExp);
             });
         });
 

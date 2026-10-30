@@ -146,7 +146,15 @@ export class BasePropertiesExtractor implements IObjectExpressionExtractor {
         const expressionStatements: ESTree.ExpressionStatement[] = [];
         const removablePropertyIds: number[] = [];
 
-        // have to iterate in the reversed order to fast check spread elements and break iteration on them
+        /**
+         * Iterate in the reversed order and extract only a trailing, contiguous run of
+         * properties. The extracted properties are re-appended to the object as
+         * `host[key] = value` statements *after* the properties that remain in the object
+         * literal, so extracting a property that sits before a retained one would reorder the
+         * keys. Property order is observable (`Object.keys`, `for...in`, `JSON.stringify`, spread),
+         * so `break` (not `continue`) on the first property that cannot be extracted — spread
+         * elements, accessors (`get`/`set`), pattern values and non-static keys alike.
+         */
         for (let i: number = propertiesLength - 1; i >= 0; i--) {
             const property: ESTree.Property | ESTree.SpreadElement = properties[i];
 
@@ -156,14 +164,14 @@ export class BasePropertiesExtractor implements IObjectExpressionExtractor {
             }
 
             if (BasePropertiesExtractor.isProhibitedPropertyNode(property)) {
-                continue;
+                break;
             }
 
             const propertyValue: ESTree.Expression | ESTree.Pattern = property.value;
 
             // invalid property node value
             if (BasePropertiesExtractor.isProhibitedPattern(propertyValue)) {
-                continue;
+                break;
             }
 
             /**
@@ -172,7 +180,18 @@ export class BasePropertiesExtractor implements IObjectExpressionExtractor {
             const propertyKeyName: string | null = BasePropertiesExtractor.getPropertyNodeKeyName(property);
 
             if (!propertyKeyName) {
-                continue;
+                break;
+            }
+
+            /**
+             * A *computed* `['__proto__']` key defines an ordinary own property named
+             * `__proto__`, but extracting it to `host['__proto__'] = value` invokes the
+             * `Object.prototype` `__proto__` setter instead (mutating the prototype for object
+             * values, silently dropping the property for primitives). Leave such a property in
+             * the object literal, where it keeps its own-property semantics.
+             */
+            if (property.computed && propertyKeyName === '__proto__') {
+                break;
             }
 
             /**

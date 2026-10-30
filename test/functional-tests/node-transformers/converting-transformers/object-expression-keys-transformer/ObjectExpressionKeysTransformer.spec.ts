@@ -453,7 +453,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                 `var ${variableMatch} *= *{};` +
                 `${variableMatch}\\['foo'] *= *'bar';` +
                 `${variableMatch}\\['baz'] *= *'bark';` +
-                `var foo *= *'' *\\+ *_0x[a-f0-9]{4,6};` +
+                `var foo *= *''\\['concat']\\(_0x[a-f0-9]{4,6}\\);` +
                 ``;
             const regExp: RegExp = new RegExp(match);
 
@@ -1946,13 +1946,17 @@ describe('ObjectExpressionKeysTransformer', () => {
         });
 
         describe('Variant #11: `get` and `set` property kinds', () => {
+            // A data property that precedes an accessor cannot be extracted without reordering
+            // keys (the extracted `host[key] = value` statement would run after the retained
+            // accessor), so the whole object is kept intact to preserve property order.
             const match: string =
                 `` +
                 `const ${variableMatch} *= *{ *` +
+                `\'bar\' *: *0x1, *` +
                 `get \'baz\' *\\(\\) *{ *return 0x2; *}, *` +
                 `set \'bark\' *\\(${variableMatch}\\) *{ *this\\[\'bark\'] *= *${variableMatch}; *} *` +
                 `}; *` +
-                `${variableMatch}\\[\'bar\'] *= *0x1;` +
+                `const ${variableMatch} *= *${variableMatch};` +
                 ``;
             const regExp: RegExp = new RegExp(match);
 
@@ -1967,7 +1971,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                 }).getObfuscatedCode();
             });
 
-            it('should keep property nodes with `get` and `set` kind in the object', () => {
+            it('should not reorder data properties that precede `get`/`set` accessors', () => {
                 assert.match(obfuscatedCode, regExp);
             });
         });
@@ -2290,7 +2294,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                     `` +
                     `var ${variableMatch} *= *{` +
                     `'foo': *'bar',` +
-                    `'baz': *'call' *\\+ *${variableMatch}\\(\\)` +
+                    `'baz': *''\\['concat']\\('call', *${variableMatch}\\(\\)\\)` +
                     `}` +
                     ``;
                 const regExp: RegExp = new RegExp(match);
@@ -2399,7 +2403,7 @@ describe('ObjectExpressionKeysTransformer', () => {
                     `` +
                     `var ${variableMatch} *= *{` +
                     `'foo': *'bar',` +
-                    `'baz': *'call' *\\+ *new ${variableMatch}\\(\\)` +
+                    `'baz': *''\\['concat']\\('call', *new ${variableMatch}\\(\\)\\)` +
                     `}` +
                     ``;
                 const regExp: RegExp = new RegExp(match);

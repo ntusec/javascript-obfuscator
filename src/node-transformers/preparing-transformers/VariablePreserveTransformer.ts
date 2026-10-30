@@ -9,6 +9,7 @@ import { IOptions } from '../../interfaces/options/IOptions';
 import { IRandomGenerator } from '../../interfaces/utils/IRandomGenerator';
 import { IScopeIdentifiersTraverser } from '../../interfaces/node/IScopeIdentifiersTraverser';
 import { IScopeIdentifiersTraverserCallbackData } from '../../interfaces/node/IScopeIdentifiersTraverserCallbackData';
+import { IScopeThroughIdentifiersTraverserCallbackData } from '../../interfaces/node/IScopeThroughIdentifiersTraverserCallbackData';
 import { IVisitor } from '../../interfaces/node-transformers/IVisitor';
 
 import { NodeTransformer } from '../../enums/node-transformers/NodeTransformer';
@@ -62,6 +63,7 @@ export class VariablePreserveTransformer extends AbstractNodeTransformer {
         this.scopeIdentifiersTraverser = scopeIdentifiersTraverser;
 
         this.preserveScopeVariableIdentifiers = this.preserveScopeVariableIdentifiers.bind(this);
+        this.preserveScopeThroughIdentifiers = this.preserveScopeThroughIdentifiers.bind(this);
     }
 
     /**
@@ -100,7 +102,33 @@ export class VariablePreserveTransformer extends AbstractNodeTransformer {
             this.preserveScopeVariableIdentifiers
         );
 
+        this.scopeIdentifiersTraverser.traverseScopeThroughIdentifiers(
+            programNode,
+            this.preserveScopeThroughIdentifiers,
+            false
+        );
+
         return programNode;
+    }
+
+    /**
+     * Free (unresolved) references point at external or global bindings that this run does not
+     * rename. Renaming a local to such a name would shadow that binding for every reference in
+     * the scope, changing which variable the code reads — short-name generators (`mangled`) are
+     * especially prone to this. Reserve every free-reference name so no generated name collides.
+     *
+     * @param {IScopeThroughIdentifiersTraverserCallbackData} data
+     */
+    private preserveScopeThroughIdentifiers(data: IScopeThroughIdentifiersTraverserCallbackData): void {
+        const { reference } = data;
+
+        // A resolved reference already points at a declared variable, which is preserved or
+        // renamed consistently elsewhere; only truly free references need reserving here.
+        if (reference.resolved) {
+            return;
+        }
+
+        this.identifierReplacer.preserveName(reference.identifier);
     }
 
     /**
